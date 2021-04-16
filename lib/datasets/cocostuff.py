@@ -62,15 +62,26 @@ class COCOStuff(BaseDataset):
 
     def read_files(self):
         files = []
-        for item in self.img_list:
-            image_path, label_path = item
-            name = os.path.splitext(os.path.basename(label_path))[0]
-            sample = {
-                'img': image_path,
-                'label': label_path,
-                'name': name
-            }
-            files.append(sample)
+
+        if 'test' in self.list_path:
+            for item in self.img_list:
+                image_path = item
+                name = os.path.splitext(os.path.basename(image_path[0]))[0]
+                sample = {
+                    'img': image_path[0],
+                    'name': name
+                }
+                files.append(sample)
+        else:
+            for item in self.img_list:
+                image_path, label_path = item
+                name = os.path.splitext(os.path.basename(label_path))[0]
+                sample = {
+                    'img': image_path,
+                    'label': label_path,
+                    'name': name
+                }
+                files.append(sample)
         return files
 
     def encode_label(self, labelmap):
@@ -89,19 +100,19 @@ class COCOStuff(BaseDataset):
         item = self.files[index]
         name = item["name"]
         image_path = os.path.join(self.root, item['img'])
-        label_path = os.path.join(self.root, item['label'])
         image = cv2.imread(
             image_path,
             cv2.IMREAD_COLOR
         )
-        label = np.array(
-            Image.open(label_path).convert('P')
-        )
-        label = self.encode_label(label)
-        label = self.reduce_zero_label(label)
-        size = label.shape
 
         if 'testval' in self.list_path:
+            label_path = os.path.join(self.root, item['label'])
+            label = np.array(
+                Image.open(label_path).convert('P')
+            )
+            label = self.encode_label(label)
+            label = self.reduce_zero_label(label)
+            size = label.shape
             image, border_padding = self.resize_short_length(
                 image,
                 short_length=self.base_size,
@@ -113,7 +124,21 @@ class COCOStuff(BaseDataset):
 
             return image.copy(), label.copy(), np.array(size), name, border_padding
 
+        if 'test' in self.list_path:
+            image = self.input_transform(image)
+            image = image.transpose((2, 0, 1))
+            size = image.shape
+
+            return image.copy(), np.array(size), name
+
         if 'val' in self.list_path:
+            label_path = os.path.join(self.root, item['label'])
+            label = np.array(
+                Image.open(label_path).convert('P')
+            )
+            label = self.encode_label(label)
+            label = self.reduce_zero_label(label)
+            size = label.shape
             image, label = self.resize_short_length(
                 image,
                 label=label,
@@ -125,6 +150,14 @@ class COCOStuff(BaseDataset):
             image = image.transpose((2, 0, 1))
 
             return image.copy(), label.copy(), np.array(size), name
+
+        label_path = os.path.join(self.root, item['label'])
+        label = np.array(
+            Image.open(label_path).convert('P')
+        )
+        label = self.encode_label(label)
+        label = self.reduce_zero_label(label)
+        size = label.shape
 
         image, label = self.resize_short_length(image, label, short_length=self.base_size)
         image, label = self.gen_sample(image, label, self.multi_scale, self.flip)
