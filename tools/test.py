@@ -121,7 +121,7 @@ def main():
                                                            test_dataset, 
                                                            testloader, 
                                                            model)
-    
+        ##平均精度とかが出てくる
         msg = 'MeanIU: {: 4.4f}, Pixel_Acc: {: 4.4f}, \
             Mean_Acc: {: 4.4f}, Class IoU: '.format(mean_IoU, 
             pixel_acc, mean_acc)

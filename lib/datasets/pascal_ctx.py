@@ -46,21 +46,44 @@ class PASCALContext(BaseDataset):
         self.crop_size = crop_size
         self.img_list = [line.strip().split() for line in open(root+list_path)]
 
+        self.label_mapping = {-1: ignore_label, 0: ignore_label, 
+                              1: ignore_label, 2: ignore_label, 
+                              3: ignore_label, 4: ignore_label, 
+                              5: ignore_label, 6: ignore_label, 
+                              7: 0, 8: 1, 9: ignore_label, 
+                              10: ignore_label, 11: 2, 12: 3, 
+                              13: 4, 14: ignore_label, 15: ignore_label, 
+                              16: ignore_label, 17: 5, 18: ignore_label, 
+                              19: 6, 20: 7, 21: 8, 22: 9, 23: 10, 24: 11,
+                              25: 12, 26: 13, 27: 14, 28: 15, 
+                              29: ignore_label, 30: ignore_label, 
+                              31: 16, 32: 17, 33: 18}
+
         self.files = self.read_files()
         if num_samples:
             self.files = self.files[:num_samples]
 
     def read_files(self):
         files = []
-        for item in self.img_list:
-            image_path, label_path = item
-            name = os.path.splitext(os.path.basename(label_path))[0]
-            sample = {
-                'img': image_path,
-                'label': label_path,
-                'name': name
-            }
-            files.append(sample)
+        if 'test' in self.list_path:
+            for item in self.img_list:
+                image_path = item
+                name = os.path.splitext(os.path.basename(image_path[0]))[0]
+                sample = {
+                    'img': image_path[0],
+                    'name': name
+                }
+                files.append(sample)
+        else:
+            for item in self.img_list:
+                image_path, label_path = item
+                name = os.path.splitext(os.path.basename(label_path))[0]
+                sample = {
+                    'img': image_path,
+                    'label': label_path,
+                    'name': name
+                }
+                files.append(sample)
         return files
 
     def resize_image(self, image, label, size):
@@ -72,11 +95,25 @@ class PASCALContext(BaseDataset):
         item = self.files[index]
         name = item["name"]
         image_path = os.path.join(self.root, item['img'])
-        label_path = os.path.join(self.root, item['label'])
         image = cv2.imread(
             image_path,
             cv2.IMREAD_COLOR
         )
+
+        if 'test' in self.list_path:
+            image, border_padding = self.resize_short_length(
+                image,
+                short_length=self.base_size,
+                fit_stride=8,
+                return_padding=True
+            )
+            size = image.shape
+            image = self.input_transform(image)
+            image = image.transpose((2, 0, 1))
+
+            return image.copy(), np.array(size), name
+
+        label_path = os.path.join(self.root, item['label'])
         label = np.array(
             Image.open(label_path).convert('P')
         )
@@ -113,3 +150,39 @@ class PASCALContext(BaseDataset):
         image, label = self.gen_sample(image, label, self.multi_scale, self.flip)
 
         return image.copy(), label.copy(), np.array(size), name
+
+       
+    def convert_label(self, label, inverse=False):
+        temp = label.copy()
+        if inverse:
+            for v, k in self.label_mapping.items():
+                label[temp == k] = v
+        else:
+            for k, v in self.label_mapping.items():
+                label[temp == k] = v
+        return label
+
+    def get_palette(self, n):
+        palette = [0] * (n * 3)
+        for j in range(0, n):
+            lab = j
+            palette[j * 3 + 0] = 0
+            palette[j * 3 + 1] = 0
+            palette[j * 3 + 2] = 0
+            i = 0
+            while lab:
+                palette[j * 3 + 0] |= (((lab >> 0) & 1) << (7 - i))
+                palette[j * 3 + 1] |= (((lab >> 1) & 1) << (7 - i))
+                palette[j * 3 + 2] |= (((lab >> 2) & 1) << (7 - i))
+                i += 1
+                lab >>= 3
+        return palette
+
+    def save_pred(self, preds, sv_path, name):
+        palette = self.get_palette(256)
+        preds = np.asarray(np.argmax(preds.cpu(), axis=1), dtype=np.uint8)
+        for i in range(preds.shape[0]):
+            # pred = self.convert_label(preds[i], inverse=True)
+            save_img = Image.fromarray(preds[i])
+            save_img.putpalette(palette)
+            save_img.save(os.path.join(sv_path, name[i]+'.png'))
