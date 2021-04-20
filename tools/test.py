@@ -71,7 +71,7 @@ def main():
     dump_input = torch.rand(
         (1, 3, config.TRAIN.IMAGE_SIZE[1], config.TRAIN.IMAGE_SIZE[0])
     )
-    logger.info(get_model_summary(model.cuda(), dump_input.cuda()))
+    # logger.info(get_model_summary(model, dump_input))
 
     if config.TEST.MODEL_FILE:
         model_state_file = config.TEST.MODEL_FILE
@@ -79,7 +79,7 @@ def main():
         model_state_file = os.path.join(final_output_dir, 'final_state.pth')        
     logger.info('=> loading model from {}'.format(model_state_file))
         
-    pretrained_dict = torch.load(model_state_file)
+    pretrained_dict = torch.load(model_state_file, map_location='cpu')
     if 'state_dict' in pretrained_dict:
         pretrained_dict = pretrained_dict['state_dict']
     model_dict = model.state_dict()
@@ -92,7 +92,7 @@ def main():
     model.load_state_dict(model_dict)
 
     gpus = list(config.GPUS)
-    model = nn.DataParallel(model, device_ids=gpus).cuda()
+    # model = nn.DataParallel(model, device_ids=gpus).cuda()
 
     # prepare data
     test_size = (config.TEST.IMAGE_SIZE[1], config.TEST.IMAGE_SIZE[0])

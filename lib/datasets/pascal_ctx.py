@@ -46,18 +46,22 @@ class PASCALContext(BaseDataset):
         self.crop_size = crop_size
         self.img_list = [line.strip().split() for line in open(root+list_path)]
 
-        self.label_mapping = {-1: ignore_label, 0: ignore_label, 
-                              1: ignore_label, 2: ignore_label, 
-                              3: ignore_label, 4: ignore_label, 
-                              5: ignore_label, 6: ignore_label, 
-                              7: 0, 8: 1, 9: ignore_label, 
-                              10: ignore_label, 11: 2, 12: 3, 
-                              13: 4, 14: ignore_label, 15: ignore_label, 
-                              16: ignore_label, 17: 5, 18: ignore_label, 
-                              19: 6, 20: 7, 21: 8, 22: 9, 23: 10, 24: 11,
-                              25: 12, 26: 13, 27: 14, 28: 15, 
-                              29: ignore_label, 30: ignore_label, 
-                              31: 16, 32: 17, 33: 18}
+        # self.label_mapping = {-1: ignore_label, 0: ignore_label, 
+        #                       1: ignore_label, 2: ignore_label, 
+        #                       3: ignore_label, 4: ignore_label, 
+        #                       5: ignore_label, 6: ignore_label, 
+        #                       7: 0, 8: 1, 9: ignore_label, 
+        #                       10: ignore_label, 11: 2, 12: 3, 
+        #                       13: 4, 14: ignore_label, 15: ignore_label, 
+        #                       16: ignore_label, 17: 5, 18: ignore_label, 
+        #                       19: 6, 20: 7, 21: 8, 22: 9, 23: 10, 24: 11,
+        #                       25: 12, 26: 13, 27: 14, 28: 15, 
+        #                       29: ignore_label, 30: ignore_label, 
+        #                       31: 16, 32: 17, 33: 18}
+
+        self.label_mapping = {x: ignore_label for x in range(-1, 59)}
+        self.label_mapping[28] = 15
+        self.label_mapping[15] = 28
 
         self.files = self.read_files()
         if num_samples:
@@ -182,7 +186,7 @@ class PASCALContext(BaseDataset):
         palette = self.get_palette(256)
         preds = np.asarray(np.argmax(preds.cpu(), axis=1), dtype=np.uint8)
         for i in range(preds.shape[0]):
-            # pred = self.convert_label(preds[i], inverse=True)
-            save_img = Image.fromarray(preds[i])
+            pred = self.convert_label(preds[i], inverse=False)
+            save_img = Image.fromarray(pred)
             save_img.putpalette(palette)
             save_img.save(os.path.join(sv_path, name[i]+'.png'))

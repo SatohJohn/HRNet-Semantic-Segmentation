@@ -149,21 +149,28 @@ class InPlaceABNSync(ABN):
         self.worker_queues = [Queue(1) for _ in self.worker_ids]
 
     def forward(self, x):
-        if x.get_device() == self.devices[0]:
-            # Master mode
-            extra = {
-                "is_master": True,
-                "master_queue": self.master_queue,
-                "worker_queues": self.worker_queues,
-                "worker_ids": self.worker_ids
-            }
-        else:
-            # Worker mode
-            extra = {
-                "is_master": False,
-                "master_queue": self.master_queue,
-                "worker_queue": self.worker_queues[self.worker_ids.index(x.get_device())]
-            }
+        # if x.get_device() == self.devices[0]:
+        #     # Master mode
+        #     extra = {
+        #         "is_master": True,
+        #         "master_queue": self.master_queue,
+        #         "worker_queues": self.worker_queues,
+        #         "worker_ids": self.worker_ids
+        #     }
+        # else:
+        #     # Worker mode
+        #     extra = {
+        #         "is_master": False,
+        #         "master_queue": self.master_queue,
+        #         "worker_queue": self.worker_queues[self.worker_ids.index(x.get_device())]
+        #     }
+        # Master mode
+        extra = {
+            "is_master": True,
+            "master_queue": self.master_queue,
+            "worker_queues": self.worker_queues,
+            "worker_ids": self.worker_ids
+        }
 
         return inplace_abn_sync(x, self.weight, self.bias, self.running_mean, self.running_var,
                                 extra, self.training, self.momentum, self.eps, self.activation, self.slope)

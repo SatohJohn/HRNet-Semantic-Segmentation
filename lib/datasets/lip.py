@@ -44,6 +44,38 @@ class LIP(BaseDataset):
         self.flip = flip
         self.img_list = [line.strip().split() for line in open(root+list_path)]
 
+        # 0  Background
+        # 1  Hat
+        # 2  Hair
+        # 3  Glove
+        # 4  Sunglasses
+        # 5  Upper-clothes
+        # 6  Dress
+        # 7  Coat
+        # 8  Socks
+        # 9  Pants
+        # 10 Jumpsuits
+        # 11 Scarf
+        # 12 Skirt
+        # 13 Face
+        # 14 Left-arm
+        # 15 Right-arm
+        # 16 Left-leg
+        # 17 Right-leg
+        # 18 Left-shoe
+        # 19 Right-shoe
+
+        self.label_mapping = {0: 2, 
+                              1: ignore_label, 2: 3, 
+                              3: ignore_label, 4: ignore_label,
+                              5: ignore_label, 6: 5, 
+                              7: ignore_label, 8: ignore_label, 9: ignore_label, 
+                              10: ignore_label, 11: ignore_label, 12: ignore_label, 
+                              13: 1, 14: 13, 15: 14, 
+                              16: 11, 17: 12, 18: ignore_label, 
+                              19: ignore_label}
+        # self.label_mapping = {x: x for x in range(-1, 20)}
+
         self.files = self.read_files()
         if num_samples:
             self.files = self.files[:num_samples]
@@ -63,6 +95,13 @@ class LIP(BaseDataset):
                 sample = {"img": image_path,
                           "label": label_path,
                           "name": name, }
+            elif 'test' in self.list_path:
+                image_path = item
+                name = os.path.splitext(os.path.basename(image_path[0]))[0]
+                sample = {
+                    'img': image_path[0],
+                    'name': name
+                }
             else:
                 raise NotImplementedError('Unknown subset.')
             files.append(sample)
@@ -77,11 +116,20 @@ class LIP(BaseDataset):
         item = self.files[index]
         name = item["name"]
         image_path = os.path.join(self.root, item['img'])
-        label_path = os.path.join(self.root, item['label'])
         image = cv2.imread(
             image_path,
             cv2.IMREAD_COLOR
         )
+        if 'test' in self.list_path:
+            image = cv2.resize(image, self.crop_size,
+                               interpolation=cv2.INTER_LINEAR)
+            size = image.shape
+            image = self.input_transform(image)
+            image = image.transpose((2, 0, 1))
+
+            return image.copy(), np.array(size), name
+
+        label_path = os.path.join(self.root, item['label'])
         label = np.array(
             Image.open(label_path).convert('P')
         )
@@ -147,7 +195,43 @@ class LIP(BaseDataset):
             flip_pred[:, 18, :, :] = flip_output[:, 19, :, :]
             flip_pred[:, 19, :, :] = flip_output[:, 18, :, :]
             flip_pred = torch.from_numpy(
-                flip_pred[:, :, :, ::-1].copy()).cuda()
+                flip_pred[:, :, :, ::-1].copy())
             pred += flip_pred
             pred = pred * 0.5
         return pred.exp()
+       
+    def convert_label(self, label, inverse=False):
+        temp = label.copy()
+        if inverse:
+            for v, k in self.label_mapping.items():
+                label[temp == k] = v
+        else:
+            for k, v in self.label_mapping.items():
+                label[temp == k] = v
+        return label
+
+    def get_palette(self, n):
+        palette = [0] * (n * 3)
+        for j in range(0, n):
+            lab = j
+            palette[j * 3 + 0] = 0
+            palette[j * 3 + 1] = 0
+            palette[j * 3 + 2] = 0
+            i = 0
+            while lab:
+                palette[j * 3 + 0] |= (((lab >> 0) & 1) << (7 - i))
+                palette[j * 3 + 1] |= (((lab >> 1) & 1) << (7 - i))
+                palette[j * 3 + 2] |= (((lab >> 2) & 1) << (7 - i))
+                i += 1
+                lab >>= 3
+        return palette
+
+    def save_pred(self, preds, sv_path, name):
+        palette = self.get_palette(256)
+        preds = np.asarray(np.argmax(preds.cpu(), axis=1), dtype=np.uint8)
+        for i in range(preds.shape[0]):
+            pred = self.convert_label(preds[i], inverse=False)
+            save_img = Image.fromarray(pred)
+            # save_img = Image.fromarray(preds[i])
+            save_img.putpalette(palette)
+            save_img.save(os.path.join(sv_path, name[i]+'.png'))
